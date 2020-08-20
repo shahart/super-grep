@@ -1,0 +1,56 @@
+/* SuperGrep. fast "kg"
+
+ version 0.9
+  no [which files] [lines before]
+  no ignore case
+  no ncurses for underline
+  no current dir
+
+ ver 0.91
+  + add -n option (1..9)
+ 
+ ver 0.92
+  + ignore case
+  
+ ver 0.93
+  + current dir
+  
+ ver 0.95
+  + 8 seconds to 1! by making filecodeUp
+
+ ver 0.96
+  + improve command line interface
+  + add -c option
+
+ ver 0.97
+  + using the size/speed tradeoff to use it on more views
+  
+    ver     size    speed
+    
+    0.96    16 MB   1.34 sec
+    0.97    3  MB   2.75
+ 
+ ver 0.98
+  + improve -n option (1..45)
+  + add -a option
+  + add -v option
+
+ ver 0.99
+  + fix 1 bug
+  + if search is in current directory, print short filename
+  + add -h option
+
+ ver 1
+  + improve times when in directory (OS>6.5)
+  + add -n option
+
+ Times: 1 second vs. 65 in new-kg
+
+ Assumption: makeFilecode creates static "filecode" which looks like
+  _
+  fileDir/fileName
+  ..
+  ...
+  _
+  file........ */
+  
