@@ -1,4 +1,4 @@
-/* SuperGrep. fast "kg". version 1 */
+/* SuperGrep. fast "kg". version 1.01 */
 /* modification history in "sg-history" */
 
 #include <stdio.h>
@@ -7,7 +7,6 @@
 
 #define MAXLINE 200
 
-#define EMACS    "/usr/freeware/bin/emacs"
 #define DATABASE "/repo/mine"
 
 int main(int argc, char *argv[])
@@ -27,7 +26,6 @@ int main(int argc, char *argv[])
     last_line,    /* last printed line no.*/
 	 current_index=0,
     and=0,
-    view=0,
 	 nand=0,
     casesens=0;   /* -c option */
 
@@ -56,15 +54,10 @@ int main(int argc, char *argv[])
           break;
 
         case 'H':
-          system("cat /projects/env/source/sg-history");
+          system("cat ~/sg-history");
           return 0;
           break;
  
-        case 'V':
-		    if (view) { printf("sg: not twice %c\n", c); return 0; }
-          view=1;
-          break;
-
         default:
           printf("sg: illegal option %c\n", c);
           argc=0;
@@ -75,19 +68,18 @@ int main(int argc, char *argv[])
     AFTER=4;
 
   if (argc!=1+and+nand) {
-    printf("Super Grep v1\n");
+    printf("Super Grep v1.01\n");
     printf("Usage: sg [-n] [-c] [-a|-n] [-v] string [string2]\n");
     printf("           -n Number of surrounded lines. max 45, default 4\n");
     printf("           -c Case sensitive search\n");
     printf("           -a search string And string2\n");
     printf("           -n search string Not string2\n");
-    printf("           -v enable Viewing the results with emacs\n");
     printf("           -h show modification History\n");
     return 0;
   }
 
-  f=  popen("gzcat "DATABASE"/filecode",  "r");
-  fup=popen("gzcat "DATABASE"/filecodeup","r");
+  f=  popen("zcat "DATABASE"/filecode",  "r");
+  fup=popen("zcat "DATABASE"/filecodeup","r");
 
   getcwd(pwd+100, MAXLINE);
   strcpy(pwd, strrchr(pwd+100,'/')+1);
@@ -124,16 +116,7 @@ int main(int argc, char *argv[])
 
     if (line[0]=='_') {
 
-      if (strlen(oldfilename)>0 && view && printf("\nView? ") && strncasecmp(gets(v),"y",1)==0 && fork()==0) {
-        printf("Ok\n");
-        strcpy(v,DATABASE);
-        strcat(v,"/");
-        strcat(v,oldfilename);
-        if (execl(EMACS,strrchr(EMACS,'/')+1,v)<0)
-          return 0;
-      }
-      else 
-        strcpy(oldfilename, "");
+      strcpy(oldfilename, "");
 
       fgets( line, MAXLINE, f);
       fgets(uline, MAXLINE, fup);
@@ -214,16 +197,7 @@ int main(int argc, char *argv[])
     }
   }
 
-  if (strlen(oldfilename)>0 && view && printf("\nView? ") && strncasecmp(gets(v),"y",1)==0 && fork()==0) {
-    printf("Ok\n");
-    strcpy(v,DATABASE);
-    strcat(v,"/");
-    strcat(v,oldfilename);
-    if (execl(EMACS,strrchr(EMACS,'/')+1,v)<0)
-      return 0;
-  }
-  else 
-    strcpy(oldfilename, "");
+  strcpy(oldfilename, "");
   
   return 0;
 }
