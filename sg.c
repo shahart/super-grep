@@ -4,10 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #define MAXLINE 200
 
-#define DATABASE "/repo/mine"
+/* DATABASE is now configurable via the SG_DATABASE environment variable.
+  If SG_DATABASE is not set, the code falls back to "/repo/mine". */
 
 int main(int argc, char *argv[])
 {
@@ -78,8 +80,15 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  f=  popen("zcat "DATABASE"/filecode",  "r");
-  fup=popen("zcat "DATABASE"/filecodeup","r");
+  {
+    const char *env_db = getenv("SG_DATABASE");
+    const char *db = (env_db && env_db[0]) ? env_db : "/repo/mine";
+    char cmd[MAXLINE];
+    snprintf(cmd, MAXLINE, "zcat %s/filecode", db);
+    f = popen(cmd, "r");
+    snprintf(cmd, MAXLINE, "zcat %s/filecodeup", db);
+    fup = popen(cmd, "r");
+  }
 
   getcwd(pwd+100, MAXLINE);
   strcpy(pwd, strrchr(pwd+100,'/')+1);
