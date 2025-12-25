@@ -1,0 +1,1053 @@
+_
+15/Lines4Client.java
+// Client for the Lines4 program
+
+// Java core packages
+import java.awt.*;
+import java.awt.event.*;
+import java.net.*;
+import java.io.*;
+
+// Java extension packages
+import javax.swing.*;
+
+// Client class to let a user play Lines4 with
+// another user across a network.
+public class Lines4Client extends JApplet
+   implements Runnable {
+
+   private JTextField idField;
+   private JTextArea displayArea;
+   private JPanel boardPanel, panel2;
+   private Square board[][];
+   private Socket connection;
+   private DataInputStream input;
+   private DataOutputStream output;
+   private Thread outputThread;
+   private char myMark;
+   private boolean myTurn;
+
+   final private int ROWS = 6;
+   final private int COLS = 7;
+
+   // Set up user-interface and board
+   public void init()
+   {
+	  Container container = getContentPane();
+ 
+	  // set up JTextArea to display messages to user
+	  displayArea = new JTextArea( 5, 30 );
+	  displayArea.setEditable( false );
+	  container.add( new JScrollPane( displayArea ),
+		 BorderLayout.SOUTH );
+
+	  // set up panel for squares in board
+	  boardPanel = new JPanel();
+	  boardPanel.setLayout( new GridLayout( ROWS, COLS, 0, 0 ) );
+
+	  // create board
+	  board = new Square[ ROWS ][ COLS ];
+
+	  // When creating a Square, the location argument to the
+	  // constructor is a value from 0 to 41 indicating the
+	  // position of the Square on the board. Values 0, 1,
+	  // and 2..6 are the first row, values 7, 8, and 9..13 are the
+	  // second row...
+	  for ( int row = 0; row < board.length; row++ ) {
+
+		 for ( int column = 0;
+				   column < board[ row ].length; column++ ) {
+
+			// create Square
+			board[ row ][ column ] =
+			   new Square( ' ', row * COLS + column );
+
+			boardPanel.add( board[ row ][ column ] );        
+		 }
+
+	  }
+
+	  // textfield to display player's mark
+	  idField = new JTextField();
+	  idField.setEditable( false );
+	  container.add( idField, BorderLayout.NORTH );
+      
+	  // set up panel to contain boardPanel (for layout purposes)
+	  panel2 = new JPanel();
+	  panel2.add( boardPanel, BorderLayout.CENTER );
+	  container.add( panel2, BorderLayout.CENTER );
+	  
+	  setSize( 300, 300 );
+	  setVisible( true );
+   }
+
+   // Make connection to server and get associated streams.
+   // Start separate thread to allow this applet to
+   // continually update its output in text area display.
+   public void start()
+   {
+	  String host = getParameter( "host" ), port = getParameter( "port" );
+	
+	  if ( host == null )
+	     host = "localhost";
+      if ( port == null )
+         port = "1800";
+
+	  // connect to server, get streams and start outputThread
+	  try {
+		 // make connection
+		 connection = new Socket( host, Integer.parseInt( port ) );
+
+		 // get streams
+		 input = new DataInputStream(
+			connection.getInputStream() );
+		 output = new DataOutputStream(
+			connection.getOutputStream() );
+	  }
+
+	  // catch problems setting up connection and streams
+	  catch ( IOException ioException ) {
+		 // ioException.printStackTrace();         
+	  }
+
+	  // create and start output thread
+	  outputThread = new Thread( this );
+	  outputThread.start();
+   }
+
+   // control thread that allows continuous update of the
+   // text area displayArea
+   public void run()
+   {
+	  // get player's mark (X or O)
+	  try {
+	  	 int myNumber;
+		 myNumber = input.readInt();
+		 myMark = ( ( myNumber % 2 == 0 ) ? 'X' : 'O' );
+  	     idField.setText( "You are player " + ( myMark == 'X' ? "Red" : "Blue" ) + ( myNumber+1 ) );
+		 myTurn = ( myMark == 'X' ? true : false );
+	  }
+
+	  // process problems communicating with server
+	  catch ( IOException ioException ) {
+		 // ioException.printStackTrace();         
+	  }
+
+	  // receive messages sent to client and output them
+	  while ( true ) {
+
+		 // read message from server and process message
+		 try {
+			String message = input.readUTF();
+			processMessage( message );
+		 }
+
+		 // process problems communicating with server
+		 catch ( IOException ioException ) {
+			displayArea.append( "Server problems.\n" );
+			return;
+			// ioException.printStackTrace();         
+		 }
+	  }
+
+   }  // end method run
+
+   // process messages received by client
+   public void processMessage( String message )
+   {
+	  // valid move occurred
+	  if ( message.equals( "Valid move." ) ) {
+		 displayArea.append( "Valid move, please wait.\n" );
+
+		// get move location and update board
+		try {
+		   final int newLocation = input.readInt();
+         
+		   // set mark in square from event-dispatch thread
+		   SwingUtilities.invokeLater(
+         
+			new Runnable() {
+         
+			   public void run()
+			   {
+				int row    = newLocation / COLS;
+				int column = newLocation % COLS;
+         
+				board[ row ][ column ].setMark( myMark );
+			   }
+         
+			}
+         
+		   ); // end call to invokeLater
+		   
+		 }
+		 
+		 // process problems communicating with server
+		 catch ( IOException ioException ) {
+		 	message = "Server problems.";
+			// ioException.printStackTrace();         
+		 }
+
+	  }
+
+	  // invalid move occurred
+	  else if ( message.equals( "Invalid move, try again" ) ) {
+		 displayArea.append( message + "\n" );
+		 myTurn = true;
+	  }
+
+  	  // opponent moved
+	  else if ( message.equals( "Opponent moved. Game over" ) ) {
+	  	
+	     // get move location and update board
+	     try {
+		    final int location = input.readInt();
+         
+		    // set mark in square from event-dispatch thread
+		    SwingUtilities.invokeLater(
+         
+			   new Runnable() {
+         
+				  public void run()
+				  {
+				     int row    = location / COLS;
+				     int column = location % COLS;
+         
+				     board[ row ][ column ].setMark(
+					    ( myMark == 'X' ? 'O' : 'X' ) );
+			  	     displayArea.append( "Opponent moved\nand wins.\n" );
+				  }
+         
+			   }
+         
+		    ); // end call to invokeLater
+                 
+		    myTurn = false;
+	     }
+
+	     // process problems communicating with server
+	     catch ( IOException ioException ) {
+			message = "Server problems.";
+		    // ioException.printStackTrace();         
+	      }
+
+	  }
+
+	  // opponent moved
+	  else if ( message.equals( "Opponent moved" ) ) {
+
+		 // get move location and update board
+		 try {
+			final int location = input.readInt();
+         
+			// set mark in square from event-dispatch thread
+			SwingUtilities.invokeLater(
+         
+			   new Runnable() {
+         
+				  public void run()
+				  {
+					 int row    = location / COLS;
+					 int column = location % COLS;
+         
+					 board[ row ][ column ].setMark(
+						( myMark == 'X' ? 'O' : 'X' ) );
+					 displayArea.append( "Opponent moved\n" );
+				  }
+         
+			   }
+         
+			); // end call to invokeLater
+                 
+			myTurn = true;
+		 }
+
+		 // process problems communicating with server
+		 catch ( IOException ioException ) {
+			message = "Server problems.";
+			// ioException.printStackTrace();         
+		 }
+
+	  }
+
+	  // simply display message
+	  else
+		 displayArea.append( message + "\n" );
+
+	  displayArea.setCaretPosition(
+		 displayArea.getText().length() );
+
+   }  // end method processMessage
+
+   // send message to server indicating clicked square
+   public void sendClickedSquare( int location )
+   {
+	  if ( myTurn ) {
+
+		 // send location to server
+		 try {
+			output.writeInt( location );
+			myTurn = false;
+		 }
+
+		 // process problems communicating with server
+		 catch ( IOException ioException ) {
+			// ioException.printStackTrace();
+		 }
+	  }
+   }
+
+   // private class for the sqaures on the board
+   private class Square extends JPanel {
+	  private char mark;
+	  private int location;
+	  final private int dimX = 30;
+   
+	  public Square( char squareMark, int squareLocation )
+	  {
+		 mark = squareMark;
+		 location = squareLocation;
+
+		 addMouseListener( 
+
+			new MouseAdapter() {
+
+			   public void mouseReleased( MouseEvent e )
+			   {
+				  sendClickedSquare( getSquareLocation() );
+			   }
+
+			}  // end anonymous inner class
+
+		 ); // end call to addMouseListener
+
+	  }  // end Square constructor
+
+	  // return preferred size of Square
+	  public Dimension getPreferredSize() 
+	  { 
+		 return new Dimension( dimX, dimX );
+	  }
+
+	  // return minimum size of Square
+	  public Dimension getMinimumSize() 
+	  {
+		 return getPreferredSize();
+	  }
+
+	  // set mark for Square
+	  public void setMark( char newMark ) 
+	  { 
+		 mark = newMark; 
+		 repaint(); 
+	  }
+   
+	  // return Square location
+	  public int getSquareLocation() 
+	  {
+		 return location; 
+	  }
+   
+	  // draw Square
+	  public void paintComponent( Graphics g )
+	  {
+		 super.paintComponent( g );
+
+		 g.drawLine( 0, 0, 0, dimX );
+		 g.drawLine( dimX-1, 0, dimX-1, dimX );
+		 
+		 if ( location / COLS == ROWS-1 )
+		    g.drawLine( 0, dimX-1, dimX-1, dimX-1 );
+		 
+		 if ( mark == 'X' ) { 
+		    g.setColor( Color.red );
+		    g.fillRect( dimX/3, dimX/3, dimX/3, dimX/3 );
+	     }
+		 else if ( mark == 'O' ) {
+		    g.setColor( Color.blue );
+			g.fillRect( dimX/3, dimX/3, dimX/3, dimX/3 );
+		 }
+	  }
+
+   }  // end class Square
+ 
+}  // end class Lines4Client
+_
+15/Lines4Server.java
+// This class maintains a game of Lines4 for two
+// client applets.
+
+// Java core packages
+import java.awt.*;
+import java.net.*;
+import java.io.*;
+
+// Java extension packages
+import javax.swing.*;
+
+public class Lines4Server extends JFrame {
+   private byte board[][];           
+   private JTextArea outputArea;
+   private Player players[];
+   private ServerSocket server;
+   private int currentPlayer[];
+   private boolean gameOver[];
+   private int occupied[];
+
+   final private int ROWS = 6;
+   final private int COLS = 7;
+   private final int SEQ  = 4; // length of SEQuence
+   
+   private final int COUPLES = 3;
+
+   // set up Lines4 server and GUI that displays messages
+   public Lines4Server()
+   {
+	  super( "Lines4 Server" );
+
+	  board = new byte[ COUPLES ][ ROWS*COLS ]; 
+	  players = new Player[ 2*COUPLES ];
+	  currentPlayer = new int[ COUPLES ];
+	  
+	  int index;
+	  for ( index = 0; index < players.length; index+=2 )
+	     currentPlayer[ index/2 ] = index;
+	     
+	  gameOver = new boolean[ COUPLES ];
+	  occupied = new int[ COUPLES ];
+ 
+	  // set up ServerSocket
+	  try {
+		 server = new ServerSocket( 1800, 2 );
+	  }
+
+	  // process problems creating ServerSocket
+	  catch( IOException ioException ) {
+		 // ioException.printStackTrace();
+		 System.exit( 1 );
+	  }
+
+	  // set up JTextArea to display messages during execution
+	  outputArea = new JTextArea();
+	  getContentPane().add( outputArea, BorderLayout.CENTER );
+	  outputArea.setText( "Server awaiting connections\n" );
+
+	  setSize( 250, 350 );
+	  setVisible( true );
+   }
+
+   // wait for two connections so game can be played
+   public void execute()
+   {
+	  // wait for each client to connect
+	  for ( int i = 0; i < players.length; i++ ) {
+
+		 // wait for connection, create Player, start thread
+		 try {
+			players[ i ] = new Player( server.accept(), i );
+			players[ i ].start();
+		 }
+
+		 // process problems receiving connection from client
+		 catch( IOException ioException ) {
+			// ioException.printStackTrace();
+			System.exit( 1 );
+		 }
+		 
+		 if ( i % 2 != 0 )
+
+	        // Player X is suspended until Player O connects.
+	        // Resume player X now.          
+	        synchronized ( players[ i-1 ] ) {
+		       players[ i-1 ].setSuspended( false );   
+		       players[ i-1 ].notify();
+	        }
+      }
+        
+   }  // end method execute
+   
+   // display a message in outputArea
+   public void display( String message )
+   {
+	  outputArea.append( message + "\n" );
+   }
+ 
+   // Determine if a move is valid.
+   // This method is synchronized because only one move can be
+   // made at a time.
+   public synchronized int validMove( 
+	  int location, int player )
+   {
+	  // while not current player, must wait for turn
+	  while ( player != currentPlayer[player/2] ) {
+         
+		 // wait for turn
+		 try {
+			wait();
+		 }
+
+		 // catch wait interruptions
+		 catch( InterruptedException interruptedException ) {
+			// interruptedException.printStackTrace();
+		 }
+	  }
+
+	  // if location not occupied, make move
+	  if ( !isFullBoard( player ) && !isOccupied( location, player ) && !gameOver[player/2] ) {
+
+         while ( location+COLS < ROWS*COLS && !isOccupied( location+COLS, player ) )
+            location += COLS;
+  
+		 // set move in board array
+		 board[ currentPlayer[player/2] / 2 ][ location ] =
+			( byte ) ( currentPlayer[player/2] % 2 == 0 ? 'X' : 'O' );
+			
+		 occupied[player/2]++;
+
+		 // change current player
+		 if ( currentPlayer[player/2] % 2 == 0 )
+		    currentPlayer[player/2]++;
+		 else
+		    currentPlayer[player/2]--;
+
+		 gameOver[player/2] = isGameOver( location, player );
+
+		 // let new current player know that move occurred
+		 players[ currentPlayer[player/2] ].otherPlayerMoved( location );
+
+		 // tell waiting player to continue
+		 notify();             
+
+		 // tell player that made move that the move was valid
+		 return location;
+	  }
+
+	  // tell player that made move that the move was not valid
+	  else 
+		 return -1;
+   }
+
+   public boolean isFullBoard( int player )
+   {
+	  if ( occupied[player/2] >= ROWS*COLS )
+	     return true;
+	  else
+	     return false;
+   }
+
+   // determine whether location is occupied
+   public boolean isOccupied( int location, int player )
+   {
+	  if ( board[ currentPlayer[player/2] / 2 ][ location ] == 'X'  
+	    || board[ currentPlayer[player/2] / 2 ][ location ] == 'O' )
+		  return true;
+	  else
+		  return false;
+   }
+
+   private boolean isMine( int loc, int player )
+   {
+   	  if ( 0 <= loc && loc < ROWS*COLS ) 
+   	     if ( board[ currentPlayer[player/2] / 2 ][ loc ] == ( byte ) ( currentPlayer[player/2] %2 != 0 ? 'X' : 'O' ) )
+   	        return true;
+   	        
+   	  return false;
+   }
+
+   private boolean checkSeq( int loc, int offset, int player )
+   {
+   	  int index;
+   	  
+   	  for ( index = 0; index < SEQ; index++ ) 
+   	     if ( ! isMine( loc + index*offset, player ) )
+   	        return false;
+
+      display( "game over for player " + (player+1) + " by offset: " + offset);
+      display( "   row: " + loc / COLS + " col: " + loc % COLS );
+   	  
+   	  return true;
+   }
+   
+   // place code in this method to determine whether game over
+   // CAN BE Optimized 
+   public boolean isGameOver( int loc, int player )
+   {
+   	  boolean winner = false;
+   	  int tempLoc, index;
+   	  
+   	  // rows
+   	  tempLoc = loc / COLS * COLS;
+   	  for ( index = 0; index <= COLS-SEQ; index++ )
+    	 winner = winner || checkSeq( tempLoc + index, 1, player );
+   	  
+      // column down
+      winner = winner || checkSeq( loc, COLS, player );      
+      
+      // diagonal /
+      tempLoc = loc - Math.min(SEQ-1,COLS-loc%COLS-1)*(COLS-1);
+	  for ( index = 0; index <= ROWS-SEQ+1; index++ )
+	     winner = winner || checkSeq( tempLoc + index*(COLS-1), COLS-1, player ); 
+ 	  
+      // diagonal \
+	  tempLoc = loc - Math.min(SEQ-1,loc%COLS)*(COLS+1);
+	  for ( index = 0; index <= ROWS-SEQ+1; index++ )
+	     winner = winner || checkSeq( tempLoc + index*(COLS+1), COLS+1, player ); 
+ 	     
+	  return winner;
+   }
+
+   // execute application
+   public static void main( String args[] )
+   {
+	  Lines4Server application = new Lines4Server();
+
+	  application.setDefaultCloseOperation( 
+		 JFrame.EXIT_ON_CLOSE );
+
+	  application.execute();
+   }
+
+   // private inner class Player manages each Player as a thread
+   private class Player extends Thread {
+	  private Socket connection;
+	  private DataInputStream input;
+	  private DataOutputStream output;
+	  private int playerNumber;
+	  private char mark;
+	  protected boolean suspended = true;
+
+	  // set up Player thread
+	  public Player( Socket socket, int number )
+	  {
+		 playerNumber = number;
+
+		 // specify player's mark
+		 mark = ( playerNumber % 2 == 0 ? 'X' : 'O' );
+
+		 connection = socket;
+         
+		 // obtain streams from Socket
+		 try {
+			input = new DataInputStream(
+			   connection.getInputStream() );
+			output = new DataOutputStream(
+			   connection.getOutputStream() );
+		 }
+
+		 // process problems getting streams
+		 catch( IOException ioException ) {
+			// ioException.printStackTrace();
+			System.exit( 1 );
+		 }
+	  }
+
+	  // send message that other player moved; message contains
+	  // a String followed by an int
+	  public void otherPlayerMoved( int location )
+	  {
+		 // send message indicating move
+		 try {
+			if ( gameOver[playerNumber/2] )
+			   output.writeUTF( "Opponent moved. Game over" );
+			else
+			   output.writeUTF( "Opponent moved" );
+			output.writeInt( location );
+
+			if ( gameOver[playerNumber/2] )
+			   connection.close();
+		 }
+
+		 // process problems sending message
+		 catch ( IOException ioException ) { 
+			// ioException.printStackTrace();
+		 }
+	  }
+
+	  // control thread's execution
+	  public void run()
+	  {
+		 // send client message indicating its mark (X or O),
+		 // process messages from client
+		 try {
+			display( "Player " + ( playerNumber % 2 == 0 ?
+			  "Red" : "Blue" ) + ( playerNumber+1 ) + " connected" );
+ 
+			// send player's mark
+			output.writeInt( playerNumber );
+
+			// send message indicating connection
+			output.writeUTF( "Player " +
+			   ( playerNumber % 2 == 0 ? "Red connected\n" :
+				  "Blue connected, please wait\n" ) );
+
+			// if player X, wait for another player to arrive
+			if ( mark == 'X' ) {
+			   output.writeUTF( "Waiting for another player" );
+   
+			   // wait for player O
+			   try {
+				  synchronized( this ) {   
+					 while ( suspended )
+						wait();  
+				  }
+			   } 
+
+			   // process interruptions while waiting
+			   catch ( InterruptedException exception ) {
+				  // exception.printStackTrace();
+			   }
+
+			   // send message that other player connected and
+			   // player X can make a move
+			   output.writeUTF(
+				  "Other player connected. Your move." );
+			}
+
+			// while game not over
+			while ( ! gameOver[playerNumber/2] && ! isFullBoard(playerNumber) ) {
+
+			   // get move location from client
+			   int location = input.readInt();
+			   
+			   // check for valid move
+			   int newLocationAndValidity = validMove( location, playerNumber );
+
+			   if ( newLocationAndValidity != -1 ) {
+				  // display( "loc: " + newLocationAndValidity );
+				  output.writeUTF( "Valid move." );
+				  output.writeInt( newLocationAndValidity );
+			   }
+			   else 
+				  output.writeUTF( "Invalid move, try again" );
+			}         
+
+			if ( gameOver[playerNumber/2] ) {
+	           output.writeUTF( "Game over.\nYou are the winner." );
+			}
+			else /* if ( isFullBoard(playerNumber) ) */ {
+	           output.writeUTF( "Game over.\ntie. (or opponent was quit)" );
+			}
+
+			// close connection to client
+			connection.close();
+		 }
+
+		 // process problems communicating with client
+		 catch( IOException ioException ) {
+			// ioException.printStackTrace();
+			display( "Player " + (playerNumber+1) + " was quit. The game was stopped");
+			occupied[playerNumber/2] = ROWS*COLS;
+			return; // System.exit( 1 );
+		 }
+	  }
+
+	  // set whether or not thread is suspended
+	  public void setSuspended( boolean status )
+	  {
+		 suspended = status;
+	  }
+   
+   }  // end class Player
+
+}  // end class Lines4Server
+_
+15/WeatherClient.java
+import java.io.*;
+import java.net.*;
+
+public class WeatherClient {
+
+	public static void main(String[] args) throws IOException {
+		if (args.length<3) {
+		   System.out.println("used paramters: host port city");
+		   return;
+		}
+		 
+		// get a datagram socket on any available port
+		try {
+			DatagramSocket socket=new DatagramSocket();
+			
+			// send request
+			byte[] buf=new byte[256];
+			InetAddress addr=InetAddress.getByName(args[0]);
+			DatagramPacket packet=new DatagramPacket(args[2].getBytes(),args[2].length(),addr,Integer.parseInt(args[1]));
+			socket.send(packet);
+			
+			// get response
+			packet=new DatagramPacket(buf,buf.length);
+			socket.receive(packet);
+			
+			// display response
+			String received=new String(packet.getData()).substring(0,packet.getLength());
+			System.out.println(received);
+			socket.close();
+		}
+		catch (SocketException e) { System.out.println("check server"); }
+	    catch (UnknownHostException e) { System.out.println("host not found"); }
+	    catch (IOException e) {};	    
+	}
+}
+_
+15/WeatherServer.java
+import javax.swing.*;
+import java.io.*;
+import java.net.*;
+import java.awt.event.*;
+
+public class WeatherServer extends JApplet {
+	
+	private String citiesNames[]={"paris", "tel-aviv", "cairo"};
+	private double temps[]=new double[citiesNames.length];
+	private JComboBox cities=new JComboBox(citiesNames);
+
+    private DatagramSocket socket=null;
+    private boolean moreClients=true;
+    
+	private class Handler implements ActionListener {
+		public void actionPerformed(ActionEvent e) {
+			int index=cities.getSelectedIndex();
+			String temp=JOptionPane.showInputDialog(temps[index]+" Celsius in "+citiesNames[index]+". New temp:");
+			
+			if (!(temp instanceof String) || temp.length()==0) 		// cancel ����� 
+			   return;
+			   
+			temps[index]=Double.parseDouble(temp);
+			   
+			if (temps[index]==0) 
+			   moreClients=false;
+		}
+	}
+
+    public void start()
+    {
+    	DatagramPacket packet;
+    	while (moreClients) {
+    		try {
+    			byte[] buf=new byte[256];
+    			
+    			// receive request
+    			packet=new DatagramPacket(buf,buf.length);
+    			socket.receive(packet);
+
+				String received=new String(packet.getData()).substring(0,packet.getLength());
+				
+				int index=0;
+				while (index<citiesNames.length && !received.equalsIgnoreCase(citiesNames[index]))
+				   index++;
+    			
+    			// prepare response
+    			String tempString;
+    			if (index<citiesNames.length) 
+    			   tempString=new Double(temps[index]).toString();
+    			else
+    			   tempString=new String("city not found");
+    			
+    			// send the response to "address" and "port"
+    			packet=new DatagramPacket(tempString.getBytes(),tempString.length(),packet.getAddress(),packet.getPort());
+    			socket.send(packet);
+    		}
+    		catch (IOException e) {	moreClients=false; }
+    	}
+    	socket.close();
+    }
+	
+	public void init()
+	{
+		cities.addActionListener(new Handler());
+		getContentPane().add(cities);
+		setSize( 100, 70 );
+		setVisible( true );
+		
+		try { socket=new DatagramSocket(1800); }
+		catch (SocketException e) {	}
+	}
+}
+_
+16/ErasePic.java
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+
+public class ErasePic extends JPanel implements ActionListener {
+    private Timer timer;
+    private Image img;
+    private boolean frozen=true;
+    
+    private static final int MAX_X=300;
+	private static final int MAX_Y=100;
+    
+    public ErasePic() {
+    	super();
+    	img=Toolkit.getDefaultToolkit().getImage("icons2.gif");
+    	addMouseListener(new MouseAdapter() {
+    		public void mousePressed(MouseEvent e) { frozen=!frozen; }
+          });
+    	startAnim();
+    }
+    
+    public void paintComponent(Graphics g) {
+    	if (frozen) {
+         // super.paintComponent(g);  // אין שימוש (!) בגלל שהציור על כל משטח היישום
+            g.drawImage(img,0,0,MAX_X,MAX_Y,this);
+    	}
+        else {
+      	    g.setColor(getBackground());
+			int x=(int)(Math.random()*MAX_X);    // הגרלת נקודה למחיקה 
+			int y=(int)(Math.random()*MAX_Y);
+    	    g.fillRect(x,y,4,4);    // מחיקת ריבוע קטן
+        }
+    }
+    
+    public void actionPerformed(ActionEvent e) {
+    	repaint();
+    }
+    
+    public void startAnim() {
+    	if (timer==null) {
+    		// "erase" כפתור
+    		timer=new Timer(5,this);
+    		timer.start();
+    	}
+    	else if (!timer.isRunning())
+    	    // "reset" כפתור
+    	    timer.restart();
+    }
+    
+	public static void main(String[] args) {
+		JFrame frame=new JFrame("Erase/Reset by mouse click");
+		frame.getContentPane().add(new ErasePic());
+		frame.addWindowListener(new WindowAdapter() {
+			public void windowClosing(WindowEvent e) { System.exit(0); }
+		  });
+		frame.setSize(MAX_X,MAX_Y);
+		frame.show();
+	}
+}
+_
+16/TrafficLights.java
+import javax.swing.JApplet;
+import java.awt.*;
+
+public class TrafficLights extends JApplet implements Runnable {
+
+	private final int COLORS=3;
+	private final int LIGHTS=4;
+	
+	private Image m_image=null;
+	private Graphics m_g;
+	
+	private Thread timer=null;
+	
+	private int[][] durations=new int[LIGHTS][];
+	private int[] light=new int[LIGHTS],past=new int[LIGHTS];
+	private int walk=0;
+
+	public void start()
+	{
+		if (timer==null) {
+			
+		   durations[0]=new int [COLORS];
+
+		   if (getParameter("red")!=null)
+		      durations[0][0]=Integer.parseInt(getParameter("red"));
+		   else
+		      durations[0][0]=10;
+		      
+		   if (getParameter("yellow")!=null)
+			  durations[0][1]=Integer.parseInt(getParameter("yellow"));
+		   else
+			  durations[0][1]=20;
+			  
+		   if (getParameter("green")!=null)
+			  durations[0][2]=Integer.parseInt(getParameter("green"));
+		   else
+			  durations[0][2]=30;
+
+ 	       durations[2]=durations[0];
+
+		   durations[1]=new int [COLORS];
+		   
+		   durations[1][0]=durations[0][2];
+		   durations[1][1]=durations[0][1];
+		   durations[1][2]=durations[2][0];
+
+		   durations[3]=durations[1];
+
+		   light[0]=0;          // red 
+		   light[2]=light[0];   // רמזור נגדי
+		   light[1]=2;          // green - מימין ל"אדום
+		   light[3]=light[1];   // נגדי ל-1 ולכן זהה
+
+		   timer=new Thread(this);
+		   timer.start();
+		}
+	}
+
+	public void update(Graphics g)
+	{
+	   paint(g);
+	}
+  
+	public void paint(Graphics g)
+	{
+	   int i;
+	   
+	   if (m_image==null) {
+		  m_image=createImage(400,130);
+		  // make a double buffer
+		  m_g=m_image.getGraphics();
+		  // ציור רמזור רכב
+		  m_g.setColor(Color.gray);
+		  for (i=0; i<LIGHTS; i++)
+			 m_g.fillRect(100*i,0,80,100);
+		  // רמזור הולכי רגל
+		  m_g.setColor(Color.black);
+		  for (i=0; i<LIGHTS; i++)
+		     m_g.drawRect(34+100*i,110,11,21);
+	   }
+
+       for (i=0; i<LIGHTS; i++) {
+		  Color[] shows={Color.red,Color.orange,Color.green};
+       	  // מחק אור רכב קודם
+		  m_g.setColor(Color.gray);
+		  for (int j=0; j<COLORS; j++)
+			 m_g.fillOval(30+100*i,5+35*j,20,20);
+          // ציור אור נוכחי
+		  m_g.setColor(shows[light[i]]);
+		  m_g.fillOval(30+100*i,5+35*light[i],20,20);
+          // מחק אור הולכי רגל
+		  m_g.setColor(getBackground());
+		  m_g.fillRect(35+100*i,120,10,10);
+		  m_g.fillRect(35+100*i,110,10,10);
+          // ציור אור הולכי רגל
+		  if (light[i]!=0) {
+		     m_g.setColor(Color.red);
+  		     m_g.fillRect(35+100*i,110,10,10);
+		  }
+		  else if (walk==0) {
+			 m_g.setColor(Color.green);
+		     m_g.fillRect(35+100*i,120,10,10);
+		  }
+	   }
+	   g.drawImage(m_image,0,0,null);
+	}
+
+	public void run()
+	{
+	   while (timer!=null) {
+		  walk=1-walk;
+		  for (int i=0; i<LIGHTS; i++) {
+			 past[i]++;
+			 // האם הרמזור דלוק לפי הזמן הקצוב לו ?
+			 // והאם אחד משאר האורות בוטל ?
+			 for (int j=0; j<COLORS && past[i]>=durations[i][light[i]]; j++) {
+				past[i]=0;
+				light[i]=(light[i]+1)%COLORS;
+			 }
+		  }
+		  try { Thread.sleep(100); }
+		  catch (InterruptedException e) {}
+		  repaint(0,0,400,130);
+	   }
+	}
+}
