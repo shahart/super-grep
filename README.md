@@ -8,6 +8,9 @@ A grep like tool with extra options like search for term1 (and (or and not) term
     REM make filecode on folders 15, 16 (as example)
 
     C:\>\Users\user\.cargo\bin\rustc.exe sg.rs
+
+    OR: cargo.exe build --verbose
+    
     C:\>sg container
 
     1

@@ -1,0 +1,5 @@
+[package]
+name = "sg"
+version = "1.0.0"
+authors = ["Shahar Tal <shahart@example.com>"]
+edition = "2021"
