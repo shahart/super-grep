@@ -44,6 +44,11 @@ Repository conventions & quirks
 - Options parsing uses `toupper` on incoming option letters; numeric flags are handled as characters `'0'..'9'`. The printed usage and actual parsing contain small mismatches — follow `sg.c` implementation when in doubt.
 - `sg-history` is kept in the repo, but `-H` expects `~/sg-history` at runtime.
 
+Rust workspace
+- This repository also contains a small Rust workspace under `src/` with a `Cargo.toml`, `src/main.rs`, and build artifacts in `target/`. See [Cargo.toml](Cargo.toml) and [src/main.rs](src/main.rs) for the Rust entrypoint.
+- To build or run the Rust component from the repo root, use `cargo build` or `cargo run --manifest-path Cargo.toml`.
+- The Rust code is separate from `sg.c` but may be useful for experiments or alternative tooling; check `src/` before making language-specific assumptions.
+
 Files to inspect when making changes
 - `sg.c` — main logic and the single source of truth for runtime behaviour and edge cases.
 - `makefile` — simple build rule.

@@ -123,3 +123,24 @@ fn main() -> io::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
+
+    #[test]
+    fn test_search_container_in_filecode() {
+        let f = File::open("filecode").expect("filecode not found");
+        let reader = BufReader::new(f);
+        let mut found = false;
+        for line in reader.lines() {
+            let l = line.expect("read error");
+            if l.contains("container") {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "Expected to find 'container' in filecode");
+    }
+}
