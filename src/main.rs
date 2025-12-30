@@ -11,7 +11,7 @@ struct Args {
     #[arg(short, long, default_value_t = 4, help = "Number of surrounded lines. max 45, default 4")]
     n: i8,
 
-    #[arg(short, long, default_value_t = String::new()), help = "String to search for")]
+    #[arg(short, long, default_value_t = String::new(), help = "String to search for")]
     s: String,
 }
 
