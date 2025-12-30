@@ -11,7 +11,7 @@ A grep like tool with extra options like search for term1 (and (or and not) term
 
     OR: cargo.exe build --verbose
     
-    C:\>sg container
+    C:\>sg -n 10 -s container
 
     1
     15/Lines4Client.java

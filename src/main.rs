@@ -1,31 +1,43 @@
 // SuperGrep. version 1.00
 
-use std::env;
 use std::fs::File;
 use std::path::Path;
 use std::io::{self, BufRead, BufReader};
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(version = "1.00", about = "Super Grep 1.00 is a tool for searching text in files", long_about = None)] 
+struct Args {
+    #[arg(short, long, default_value_t = 4, help = "Number of surrounded lines. max 45, default 4")]
+    n: i8,
+
+    #[arg(short, long, default_value_t = String::new()), help = "String to search for")]
+    s: String,
+}
 
 fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().skip(1).collect();
+    let args = Args::parse();
 
-    let after = 4; // The number of lines to show after a match. TODO support
+    let mut after: usize = args.n as usize; // The number of lines to show after a match.
 
-    if args.len() != 1 {
+    if after <= 0 || after > 45 {
+        after = 4;
+    }
+
+    if args.s == "" {
         eprintln!("Super Grep v1.00");
-        eprintln!("Usage: sg string");
+        eprintln!("Usage: sg [-n] string");
+        eprintln!("           -n Number of surrounded lines. max 45, default 4");
         return Ok(());
     }
 
-    // TODO support args, like -n -a -c
+    // TODO support args, like -a -c
 
     // Open filecode. TODO with zcat
     let f = BufReader::new(File::open(Path::new("filecode"))?);
     let pwd = ".".to_string();
 
-    // Prepare search strings
-    let mut argv_iter = args.iter();
-
-    let search_str = argv_iter.next().unwrap().clone();
+    let search_str = args.s.clone();
 
     // Variables for processing
     let mut search = false;
