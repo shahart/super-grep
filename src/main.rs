@@ -19,8 +19,11 @@ struct Args {
     #[arg(short, long, default_value_t = String::new(), help = "String to search for")]
     s: String,
 
-    #[arg(short, long, default_value_t = String::new(), help = "Another string to search for")]
+    #[arg(short, long, default_value_t = String::new(), conflicts_with = "e", help = "Another string to search for")]
     a: String,
+
+    #[arg(short, long, default_value_t = String::new(), help = "String to exclude from matches")]
+    e: String,
 
     #[arg(short, long, default_value_t = false, help = "Case sensitive search")]
     c: bool,
@@ -48,10 +51,13 @@ fn line_matches(
     line: &str,
     search_str: &str,
     search_str_second: &str,
+    search_str_exclude: &str,
     case_sensitive: bool,
 ) -> bool {
     line_contains(line, search_str, case_sensitive)
         && (search_str_second.is_empty() || line_contains(line, search_str_second, case_sensitive))
+        && (search_str_exclude.is_empty()
+            || !line_contains(line, search_str_exclude, case_sensitive))
 }
 
 fn main() -> io::Result<()> {
@@ -60,10 +66,11 @@ fn main() -> io::Result<()> {
     let after = normalize_after(args.n); // The number of lines to show after a match.
 
     if args.s == "" {
-        eprintln!("Super Grep v1.0.1");
-        eprintln!("Usage: sg [-n 4] [-c] -s string [-a string]");
+        eprintln!("Super Grep v1.0.2");
+        eprintln!("Usage: sg [-n 4] [-c] -s string [-a string] [-e string]");
         eprintln!("           -n Number of surrounded lines. max 45, default 4");
         eprintln!("           -a Another string to search for");
+        eprintln!("           -e String to exclude from matches. Cannot be used with -a");
         eprintln!("           -c Case sensitive search");
         return Ok(());
     }
@@ -76,6 +83,7 @@ fn main() -> io::Result<()> {
 
     let search_str = args.s.clone();
     let search_str_second = args.a.clone();
+    let search_str_exclude = args.e.clone();
 
     // Variables for processing
     let mut search = false;
@@ -125,7 +133,13 @@ fn main() -> io::Result<()> {
             index = (index + 1) % after;
             current += 1;
 
-            let contains_needle = line_matches(&line, &search_str, &search_str_second, args.c);
+            let contains_needle = line_matches(
+                &line,
+                &search_str,
+                &search_str_second,
+                &search_str_exclude,
+                args.c,
+            );
 
             if next > 0 {
                 if contains_needle {
@@ -206,12 +220,14 @@ mod tests {
             "Container container = getContentPane();",
             "container",
             "getContentPane",
+            "",
             false
         ));
         assert!(!line_matches(
             "Container container = getContentPane();",
             "container",
             "missing",
+            "",
             false
         ));
     }
@@ -222,6 +238,25 @@ mod tests {
             "Container container = getContentPane();",
             "container",
             "",
+            "",
+            false
+        ));
+    }
+
+    #[test]
+    fn test_line_matches_excludes_second_search_string() {
+        assert!(line_matches(
+            "Container container = getContentPane();",
+            "container",
+            "",
+            "missing",
+            false
+        ));
+        assert!(!line_matches(
+            "Container container = getContentPane();",
+            "container",
+            "",
+            "getContentPane",
             false
         ));
     }
