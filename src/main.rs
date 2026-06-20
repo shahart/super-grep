@@ -1,18 +1,26 @@
 // SuperGrep. version 1.00
 
-use std::fs::File;
-use std::path::Path;
-use std::io::{self, BufRead, BufReader};
 use clap::Parser;
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
+use std::path::Path;
 
 #[derive(Parser, Debug)]
-#[command(version = "1.00", about = "Super Grep 1.00 is a tool for searching text in files", long_about = None)] 
+#[command(version = "1.00", about = "Super Grep 1.00 is a tool for searching text in files", long_about = None)]
 struct Args {
-    #[arg(short, long, default_value_t = 4, help = "Number of surrounded lines. max 45, default 4")]
+    #[arg(
+        short,
+        long,
+        default_value_t = 4,
+        help = "Number of surrounded lines. max 45, default 4"
+    )]
     n: i8,
 
     #[arg(short, long, default_value_t = String::new(), help = "String to search for")]
     s: String,
+
+    #[arg(short, long, default_value_t = false, help = "Case sensitive search")]
+    c: bool,
 }
 
 fn normalize_after(n: i8) -> usize {
@@ -25,6 +33,14 @@ fn normalize_after(n: i8) -> usize {
     after
 }
 
+fn line_matches(line: &str, search_str: &str, case_sensitive: bool) -> bool {
+    if case_sensitive {
+        line.contains(search_str)
+    } else {
+        line.to_lowercase().contains(&search_str.to_lowercase())
+    }
+}
+
 fn main() -> io::Result<()> {
     let args = Args::parse();
 
@@ -32,12 +48,13 @@ fn main() -> io::Result<()> {
 
     if args.s == "" {
         eprintln!("Super Grep v1.00");
-        eprintln!("Usage: sg [-n] string");
+        eprintln!("Usage: sg [-n 4] [-c] -s string");
         eprintln!("           -n Number of surrounded lines. max 45, default 4");
+        eprintln!("           -c Case sensitive search");
         return Ok(());
     }
 
-    // TODO support args, like -a -c
+    // TODO support args, like -a
 
     // Open filecode. TODO with zcat
     let f = BufReader::new(File::open(Path::new("filecode"))?);
@@ -93,11 +110,10 @@ fn main() -> io::Result<()> {
             index = (index + 1) % after;
             current += 1;
 
-            let contains_needle = line.contains(&search_str);
+            let contains_needle = line_matches(&line, &search_str, args.c);
 
             if next > 0 {
-                if contains_needle
-                {
+                if contains_needle {
                     print!("*");
                     next = after;
                 } else {
@@ -106,15 +122,10 @@ fn main() -> io::Result<()> {
                 }
                 println!(" {}\t{}", current, line);
                 last_line = current;
-            } else if contains_needle
-            {
+            } else if contains_needle {
                 if first_print {
                     current_index += 1;
-                    println!(
-                        "\n{}\n{}\n",
-                        current_index,
-                        &filename
-                    );
+                    println!("\n{}\n{}\n", current_index, &filename);
                     oldfilename = filename.clone();
                     first_print = false;
                 }
@@ -144,7 +155,7 @@ fn main() -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_after;
+    use super::{line_matches, normalize_after};
     use std::fs::File;
     use std::io::{BufRead, BufReader};
 
@@ -160,6 +171,18 @@ mod tests {
         assert_eq!(normalize_after(1), 1);
         assert_eq!(normalize_after(4), 4);
         assert_eq!(normalize_after(45), 45);
+    }
+
+    #[test]
+    fn test_line_matches_ignores_case_by_default() {
+        assert!(line_matches("Container container", "container", false));
+        assert!(line_matches("Container container", "CONTAINER", false));
+    }
+
+    #[test]
+    fn test_line_matches_case_sensitive() {
+        assert!(line_matches("Container container", "Container", true));
+        assert!(!line_matches("Container container", "CONTAINER", true));
     }
 
     #[test]
@@ -185,7 +208,10 @@ mod tests {
             .output()
             .expect("failed to run sg");
 
-        assert!(output.status.success(), "sg returned a non-zero exit status");
+        assert!(
+            output.status.success(),
+            "sg returned a non-zero exit status"
+        );
 
         let stdout = String::from_utf8(output.stdout).expect("stdout was not valid UTF-8");
         let normalized = stdout.replace("\r\n", "\n");
@@ -231,5 +257,4 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
-
 }
