@@ -19,6 +19,9 @@ struct Args {
     #[arg(short, long, default_value_t = String::new(), help = "String to search for")]
     s: String,
 
+    #[arg(short, long, default_value_t = String::new(), help = "Another string to search for")]
+    a: String,
+
     #[arg(short, long, default_value_t = false, help = "Case sensitive search")]
     c: bool,
 }
@@ -33,12 +36,22 @@ fn normalize_after(n: i8) -> usize {
     after
 }
 
-fn line_matches(line: &str, search_str: &str, case_sensitive: bool) -> bool {
+fn line_contains(line: &str, search_str: &str, case_sensitive: bool) -> bool {
     if case_sensitive {
         line.contains(search_str)
     } else {
         line.to_lowercase().contains(&search_str.to_lowercase())
     }
+}
+
+fn line_matches(
+    line: &str,
+    search_str: &str,
+    search_str_second: &str,
+    case_sensitive: bool,
+) -> bool {
+    line_contains(line, search_str, case_sensitive)
+        && (search_str_second.is_empty() || line_contains(line, search_str_second, case_sensitive))
 }
 
 fn main() -> io::Result<()> {
@@ -47,20 +60,22 @@ fn main() -> io::Result<()> {
     let after = normalize_after(args.n); // The number of lines to show after a match.
 
     if args.s == "" {
-        eprintln!("Super Grep v1.00");
-        eprintln!("Usage: sg [-n 4] [-c] -s string");
+        eprintln!("Super Grep v1.0.1");
+        eprintln!("Usage: sg [-n 4] [-c] -s string [-a string]");
         eprintln!("           -n Number of surrounded lines. max 45, default 4");
+        eprintln!("           -a Another string to search for");
         eprintln!("           -c Case sensitive search");
         return Ok(());
     }
 
-    // TODO support args, like -a
+    // TODO support args -e(xclude)
 
     // Open filecode. TODO with zcat
     let f = BufReader::new(File::open(Path::new("filecode"))?);
     let pwd = ".".to_string();
 
     let search_str = args.s.clone();
+    let search_str_second = args.a.clone();
 
     // Variables for processing
     let mut search = false;
@@ -110,7 +125,7 @@ fn main() -> io::Result<()> {
             index = (index + 1) % after;
             current += 1;
 
-            let contains_needle = line_matches(&line, &search_str, args.c);
+            let contains_needle = line_matches(&line, &search_str, &search_str_second, args.c);
 
             if next > 0 {
                 if contains_needle {
@@ -155,7 +170,7 @@ fn main() -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{line_matches, normalize_after};
+    use super::{line_contains, line_matches, normalize_after};
     use std::fs::File;
     use std::io::{BufRead, BufReader};
 
@@ -175,14 +190,40 @@ mod tests {
 
     #[test]
     fn test_line_matches_ignores_case_by_default() {
-        assert!(line_matches("Container container", "container", false));
-        assert!(line_matches("Container container", "CONTAINER", false));
+        assert!(line_contains("Container container", "container", false));
+        assert!(line_contains("Container container", "CONTAINER", false));
     }
 
     #[test]
     fn test_line_matches_case_sensitive() {
-        assert!(line_matches("Container container", "Container", true));
-        assert!(!line_matches("Container container", "CONTAINER", true));
+        assert!(line_contains("Container container", "Container", true));
+        assert!(!line_contains("Container container", "CONTAINER", true));
+    }
+
+    #[test]
+    fn test_line_matches_requires_both_search_strings() {
+        assert!(line_matches(
+            "Container container = getContentPane();",
+            "container",
+            "getContentPane",
+            false
+        ));
+        assert!(!line_matches(
+            "Container container = getContentPane();",
+            "container",
+            "missing",
+            false
+        ));
+    }
+
+    #[test]
+    fn test_line_matches_allows_empty_second_search_string() {
+        assert!(line_matches(
+            "Container container = getContentPane();",
+            "container",
+            "",
+            false
+        ));
     }
 
     #[test]
