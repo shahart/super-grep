@@ -45,4 +45,10 @@ A grep like tool with extra options like search for term1 (and (or and not) term
       79              setVisible( true );
       80       }
 
+**GO kickoff**
+
+```
+go run main.go -s container
+```
+
 
