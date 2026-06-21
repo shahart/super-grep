@@ -1,2 +1,2 @@
 sg: sg.c
-	gcc -o sg sg.c
+	cc -o sg sg.c

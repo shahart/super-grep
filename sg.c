@@ -5,6 +5,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #define MAXLINE 200
 
@@ -84,9 +85,9 @@ int main(int argc, char *argv[])
     const char *env_db = getenv("SG_DATABASE");
     const char *db = (env_db && env_db[0]) ? env_db : "/repo/mine";
     char cmd[MAXLINE];
-    snprintf(cmd, MAXLINE, "zcat %s/filecode", db);
+    snprintf(cmd, MAXLINE, "gzcat %s/filecode", db);
     f = popen(cmd, "r");
-    snprintf(cmd, MAXLINE, "zcat %s/filecodeup", db);
+    snprintf(cmd, MAXLINE, "gzcat %s/filecodeup", db);
     fup = popen(cmd, "r");
   }
 
